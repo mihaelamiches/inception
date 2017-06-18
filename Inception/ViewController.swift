@@ -18,8 +18,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var emojis: [Emoji] = []
     let inceptionv3 = Inceptionv3()
     
-    var lastPredictionDate: Date = Date()
+    var lastPredicted: TimeInterval = Date().timeIntervalSinceNow
     var lastRefreshed: TimeInterval = Date().timeIntervalSinceNow
+    
     var emojiCache: [TimeInterval: Emojified] = [:]
     let attentionSpan = 1
     
@@ -90,14 +91,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: - Cache
     func clearCache(_ purge: Bool = true) {
+        let lifeSpan = 5
         guard purge == true else { emojiCache = [:]; return }
         
         emojiCache = emojiCache.filter { cached in
-            let limit = Calendar.current.date(byAdding: .second, value: -attentionSpan, to: Date())!
-            return (Calendar.current.dateComponents([.second], from: Date(), to: limit).second ?? 0) < attentionSpan
+            let limit = Calendar.current.date(byAdding: .second, value: -lifeSpan, to: Date())!
+            return (Calendar.current.dateComponents([.second], from: Date(), to: limit).second ?? 0) < lifeSpan
+            
         }
     }
-    
     
     // MARK: - Emojify
     func loadEmojis() {
@@ -116,17 +118,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let words = input.split(separator: " ").map { String($0).trimmingCharacters(in: .whitespaces) }
         
         let exact = emojis.filter { $0.description.lowercased() == input  }.map { $0.value }
+        guard exact.count == 0 else { return exact }
+        
         let close = emojis.filter { $0.description.lowercased().contains(input) || input.contains($0.description.lowercased()) || $0.tags.contains(input)  }.map { $0.value }
         
         let similar: [String] = words.reduce([]) { (acc, part) -> [String] in
             let word = part
             let same: [String] =  emojis.filter { $0.description.contains(word) }.map { $0.value }
             return acc + same
-        } + close
-        
-        if exact.count > 0 {
-            return exact
-        }
+            } + close
         
         let probs = similar.reduce([:]) {  (acc, part) -> [String: Int] in
             var next = acc
@@ -149,8 +149,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             let inception = try? inceptionv3.prediction(image: inceptionScene)
             else { return "😅" }
         
-        let likelyProbs = inception.classLabel.split(separator: ",")
-        return likelyProbs.map{ String($0) }.joined(separator: ",")
+        return inception.classLabel
     }
     
     func snapshotScene(_ time: TimeInterval) {
@@ -189,13 +188,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let node = SCNNode(geometry: textGeometry)
         node.position = SCNVector3(0, 0, -0.2)
+        node.accessibilityLabel = value.0
+        node.isAccessibilityElement = true
         
         return node
     }
     
     
     func sceneNode() -> SCNNode {
-        guard let lastEmoji = emojiCache[lastRefreshed] else {
+        guard let lastEmoji = emojiCache[lastPredicted] else {
             let node = anchorNode(type: .emoji, value: ("","🤔"))
             node.addAnimation(CABasicAnimation.spin, forKey: "spin around")
             return node
@@ -212,25 +213,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: - Scene Delegate
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-        let predictRate = 1
-        let refreshRate = 2
+      //  let predictRate = 1
+      let refreshRate = 1
         
-        let now = Date(timeIntervalSinceNow: time)
-        let sinceLastPredicted = Calendar.current.dateComponents([.second], from: lastPredictionDate, to: now).second
-        let sinceLastSceneUpdate = Calendar.current.dateComponents([.second], from: Date(timeIntervalSinceNow: lastRefreshed), to: now).second
+       // if TimeInterval.seconds(between: lastPredicted, and: time) > predictRate {
+          snapshotScene(time)
+          lastPredicted = time
+       // }
         
-        let bufferSeconds = sinceLastPredicted != nil ? sinceLastPredicted! : Int.max
-        let secondsSinceRefreshed = sinceLastSceneUpdate != nil ? sinceLastSceneUpdate! : Int.max
-        
-        if bufferSeconds >= predictRate {
-          lastPredictionDate = now
-            
-           snapshotScene(time)
-            
-          if secondsSinceRefreshed >= refreshRate {
-             lastRefreshed = time
-             dispatchAnchor()
-          }
+        if TimeInterval.seconds(between: lastRefreshed, and: time) > refreshRate {
+            dispatchAnchor()
+            lastRefreshed = time
         }
     }
     

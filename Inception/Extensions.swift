@@ -9,6 +9,7 @@
 import UIKit
 import SceneKit
 
+//MARK: - CVPixelBuffer
 extension CVPixelBuffer {
     func resized(for kind: MLModelInput) -> CVPixelBuffer? {
         let image = UIImage(ciImage: CIImage(cvPixelBuffer: self))
@@ -26,6 +27,7 @@ extension CVPixelBuffer {
     }
 }
 
+//MARK: - UIImage
 extension UIImage {
     var pixelBuffer: CVPixelBuffer? {
         let attrs = [kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue, kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue] as CFDictionary
@@ -53,12 +55,14 @@ extension UIImage {
     }
 }
 
+//MARK: - Array
 extension Array {
     func shuffled() -> Array {
         return sorted { _,_ in arc4random() < arc4random() }
     }
 }
 
+//MARK: - UIColor
 extension UIColor {
     static var pink: UIColor {
         return UIColor(red: 0xF2 / 255.0, green: 0x6D / 255.0, blue: 0x7D / 255.0, alpha: 1.0)
@@ -69,18 +73,27 @@ extension UIColor {
     }
 }
 
+//MARK: - CABasicAnimation
 extension CABasicAnimation {
     static var spin: CABasicAnimation {
         let spin = CABasicAnimation(keyPath: "rotation")
         spin.fromValue = SCNVector4(0, 1, 0, 0)
         spin.toValue = SCNVector4(0, 1, 0, 2 * Double.pi)
-        spin.duration = 1.5
         spin.repeatCount = .infinity
         return spin
     }
 }
 
-// MARK: - Thermal State
+//MARK: - TimeInterval
+extension TimeInterval {
+    static func seconds(between: TimeInterval, and: TimeInterval) -> Int {
+        let from = Date(timeIntervalSinceNow: between)
+        let to = Date(timeIntervalSinceNow: and)
+        return Int(abs(Calendar.current.dateComponents([.second], from: from, to: to).second ?? Int.max))
+    }
+}
+
+// MARK: - UIViewController Thermal State
 extension UIViewController {
     func addThermalStateObserver() {
         NotificationCenter.default.addObserver(self, selector: #selector(thermalStateChanged), name: ProcessInfo.thermalStateDidChangeNotification,    object: nil)
