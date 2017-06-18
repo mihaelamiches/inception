@@ -79,7 +79,8 @@ extension CABasicAnimation {
         let spin = CABasicAnimation(keyPath: "rotation")
         spin.fromValue = SCNVector4(0, 1, 0, 0)
         spin.toValue = SCNVector4(0, 1, 0, 2 * Double.pi)
-        spin.duration = 1.5
+        spin.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseOut)
+        spin.duration = 0.9
         spin.repeatCount = .infinity
         return spin
     }

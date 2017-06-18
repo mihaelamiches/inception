@@ -52,6 +52,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.delegate = self
         sceneView.showsStatistics = true
         sceneView.scene = SCNScene()
+        sceneView.isAccessibilityElement = true
     }
     
     func startSession() {
@@ -188,7 +189,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let node = SCNNode(geometry: textGeometry)
         node.position = SCNVector3(0, 0, -0.2)
         node.accessibilityLabel = value.0
-        node.isAccessibilityElement = true
         
         return node
     }
@@ -228,11 +228,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         DispatchQueue.main.async {
-            node.addChildNode(self.sceneNode())
+            let child = self.sceneNode()
+            self.sceneView.accessibilityLabel = child.accessibilityLabel
+            node.addChildNode(child)
         }
     }
     
     func renderer(_ renderer: SCNSceneRenderer, didRemove node: SCNNode, for anchor: ARAnchor) {
+        sceneView.accessibilityLabel = ""
         node.enumerateChildNodes { (child, _) in
             child.removeFromParentNode()
         }
