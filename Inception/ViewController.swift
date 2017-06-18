@@ -167,7 +167,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     // MARK:- Scene Nodes
     func anchorNode(type: AnchorType, value: Emojified) -> SCNNode {
         let layer = CALayer()
-        let size = 300
+        let size = 600
         layer.frame = CGRect(origin: .zero, size: CGSize(width: size, height: size))
         layer.backgroundColor = UIColor.clear.cgColor
         let text = type == .emoji ? value.1 : value.0
