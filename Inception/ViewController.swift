@@ -10,19 +10,20 @@ import UIKit
 import SceneKit
 import ARKit
 import CoreML
+import Vision
 
 class ViewController: UIViewController, ARSCNViewDelegate {
     @IBOutlet var sceneView: ARSCNView!
     var anchors: [ARAnchor] = []
     
     var emojis: [Emoji] = []
+    
     let inceptionv3 = Inceptionv3()
+    let vision = try? VNCoreMLModel(for: Inceptionv3().model)
     
     var emojiCache: [Date: Emojified] = [:]
     var lastPredicted = Date()
     var lastRefreshed = Date()
-    
-    let attentionSpan = 1
     
     
     //MARK: - View Lifecycle
@@ -71,7 +72,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         anchors = []
     }
     
-    func dispatchAnchor(after: Int = 0) {
+    func dispatchSceneAnchor(after: Int = 0) {
         DispatchQueue.main.asyncAfter(deadline: (DispatchTime.now() + Double(after))) {
             self.addSceneAnchor()
         }
@@ -97,6 +98,16 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let alive = Calendar.current.date(byAdding: .second, value: -lifespan, to: Date()) ?? Date()
         emojiCache = emojiCache.filter {  $0.key >= alive }
+    }
+    
+    func updateCache(withContents contents: String) {
+        let emoji = contents.split(separator: ",").flatMap { emojify(String($0)).first }.shuffled().first
+        
+        clearCache()
+        if contents.characters.count > 0 {
+            lastPredicted = Date()
+            emojiCache[lastPredicted] = (contents == "nematode, nematode worm, roundworm") ? ("", "🤔") : (contents, emoji ?? "")
+        }
     }
     
     // MARK: - Emojify
@@ -141,25 +152,35 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         return likely != nil ? [likely!] : []
     }
     
-    func detectSceneContents() -> String {
-        guard let capturedImage = sceneView.session.currentFrame?.capturedImage,
-            let inceptionScene = capturedImage.resized(for: .inception),
+    //MARK: - Vision
+    func observeInceptionObjects(_ capturedScene: CVPixelBuffer) {
+        guard let inceptionScene = capturedScene.resized(for: .inception),
             let inception = try? inceptionv3.prediction(image: inceptionScene)
-            else { return "😅" }
+        else { return print("😅") }
         
-        return inception.classLabel
+        updateCache(withContents: inception.classLabel)
     }
     
-    func snapshotScene() {
-        clearCache()
+    func observeVisionObjects(_ capturedScene: CVPixelBuffer) {
+        guard let vision = vision else { return print("😅") }
         
-        let contents = detectSceneContents()
-        let emoji = contents.split(separator: ",").flatMap { emojify(String($0)).first }.shuffled().first
-        
-        if contents.characters.count > 0 {
-            lastPredicted = Date()
-            emojiCache[lastPredicted] = (contents == "nematode, nematode worm, roundworm") ? ("", "🤔") : (contents, emoji ?? "")
+        let visionHandler = VNImageRequestHandler(ciImage: CIImage(cvPixelBuffer: capturedScene))
+        let visionRequest = VNCoreMLRequest(model: vision) { (request, error) in
+            guard let observations = request.results as? [VNClassificationObservation],
+                let best = observations.first,
+                error == nil else { return print(error ?? "😅") }
+            
+            self.updateCache(withContents: best.identifier)
         }
+        
+        try? visionHandler.perform([visionRequest])
+    }
+    
+    func detectSceneObjects() {
+        guard let capturedScene = sceneView.session.currentFrame?.capturedImage else { return print("😅") }
+        
+        observeVisionObjects(capturedScene)
+        observeInceptionObjects(capturedScene)
     }
     
     // MARK:- Scene Nodes
@@ -199,9 +220,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             return anchorNode(type: .emoji, value: ("","🤔"))
         }
         
-        let descriptionNode = anchorNode(type: .about, value: lastEmoji)
         let emoji = anchorNode(type: .emoji, value: lastEmoji)
         
+        let descriptionNode = anchorNode(type: .about, value: lastEmoji)
         descriptionNode.addChildNode(emoji)
         
         return descriptionNode
@@ -214,11 +235,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
       let now = Date()
         
       if Calendar.current.dateComponents([.second], from: lastPredicted, to: now).second ?? 0 >= predictRate {
-        snapshotScene()
+         detectSceneObjects()
       }
         
       if Calendar.current.dateComponents([.second], from: lastRefreshed, to: now).second ?? 0 >= refreshRate {
-        dispatchAnchor()
+        dispatchSceneAnchor()
         lastRefreshed = now
       }
     }
