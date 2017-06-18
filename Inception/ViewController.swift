@@ -52,7 +52,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.delegate = self
         sceneView.showsStatistics = true
         sceneView.scene = SCNScene()
-        sceneView.isAccessibilityElement = true
     }
     
     func startSession() {
@@ -174,7 +173,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let textLayer = CATextLayer()
         textLayer.frame = layer.frame
         textLayer.foregroundColor = UIColor.pink.cgColor
-        textLayer.fontSize = type == .emoji ? layer.bounds.size.height : (text.characters.count > 50 ? 60 : 90)
+        textLayer.fontSize = type == .emoji ? layer.bounds.size.height : (text.characters.count > 30 ? 50 : 90)
         textLayer.string =  text
         textLayer.alignmentMode = type == .emoji ? kCAAlignmentCenter : kCAAlignmentLeft
         textLayer.isWrapped = true
@@ -188,7 +187,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let node = SCNNode(geometry: textGeometry)
         node.position = SCNVector3(0, 0, -0.2)
-        node.accessibilityLabel = value.0
+        node.accessibilityLabel = String(value.0.split(separator: ",").first ?? "")
+        node.isAccessibilityElement = true
         
         return node
     }
@@ -196,15 +196,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func sceneNode() -> SCNNode {
         guard let lastEmoji = emojiCache[lastPredicted] else {
-            let node = anchorNode(type: .emoji, value: ("","🤔"))
-            node.addAnimation(CABasicAnimation.spin, forKey: "spin around")
-            return node
+            return anchorNode(type: .emoji, value: ("","🤔"))
         }
         
         let descriptionNode = anchorNode(type: .about, value: lastEmoji)
         let emoji = anchorNode(type: .emoji, value: lastEmoji)
         
-        emoji.addAnimation(CABasicAnimation.spin, forKey: "spin around")
         descriptionNode.addChildNode(emoji)
         
         return descriptionNode
@@ -213,7 +210,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     // MARK: - Scene Delegate
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
       let predictRate = 1
-      let refreshRate = 1
+      let refreshRate = UIAccessibilityIsVoiceOverRunning() ? 2 : 1 // give it time to read
       let now = Date()
         
       if Calendar.current.dateComponents([.second], from: lastPredicted, to: now).second ?? 0 >= predictRate {
@@ -229,13 +226,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         DispatchQueue.main.async {
             let child = self.sceneNode()
-            self.sceneView.accessibilityLabel = child.accessibilityLabel
+            UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, child.accessibilityLabel)
             node.addChildNode(child)
         }
     }
     
     func renderer(_ renderer: SCNSceneRenderer, didRemove node: SCNNode, for anchor: ARAnchor) {
-        sceneView.accessibilityLabel = ""
         node.enumerateChildNodes { (child, _) in
             child.removeFromParentNode()
         }

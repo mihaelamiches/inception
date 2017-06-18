@@ -86,10 +86,23 @@ extension CABasicAnimation {
     }
 }
 
+//MARK: - String
+extension String {
+    func localised(comment: String = "") -> String {
+        return NSLocalizedString(self, comment: comment)
+    }
+}
+
 // MARK: - UIViewController Thermal State
 extension UIViewController {
     func addThermalStateObserver() {
         NotificationCenter.default.addObserver(self, selector: #selector(thermalStateChanged), name: ProcessInfo.thermalStateDidChangeNotification,    object: nil)
+    }
+    
+    @objc func thermalStateChanged(notification: NSNotification) {
+        if let processInfo = notification.object as? ProcessInfo {
+            showThermalState(state: processInfo.thermalState)
+        }
     }
     
     func checkTermalState() {
@@ -99,29 +112,21 @@ extension UIViewController {
         }
     }
     
-    @objc
-    func thermalStateChanged(notification: NSNotification) {
-        if let processInfo = notification.object as? ProcessInfo {
-            showThermalState(state: processInfo.thermalState)
-        }
-    }
-    
     func showThermalState(state: ProcessInfo.ThermalState) {
         DispatchQueue.main.async {
-            var thermalStateString = "UNKNOWN"
+            var thermalState = "UNKNOWN"
             if state == .nominal {
-                thermalStateString = "NOMINAL"
+                thermalState = "it's cool"
             } else if state == .fair {
-                thermalStateString = "FAIR"
+                thermalState = "fairly warm"
             } else if state == .serious {
-                thermalStateString = "SERIOUS"
+                thermalState = "hot af"
             } else if state == .critical {
-                thermalStateString = "CRITICAL"
+                thermalState = "your phone is about to blow up. Go outside and get some air, nerd!"
             }
             
-            let message = NSLocalizedString("Thermal state: \(thermalStateString)", comment: "Alert message when thermal state has changed")
-            let alertController = UIAlertController(title: "AVCamPhotoFilter", message: message, preferredStyle: .alert)
-            alertController.addAction(UIAlertAction(title: NSLocalizedString("mkay", comment: "Alert OK button"), style: .cancel, handler: nil))
+            let alertController = UIAlertController(title: "ThermalState", message: thermalState.localised(), preferredStyle: .alert)
+            alertController.addAction(UIAlertAction(title: "mkay".localised(), style: .cancel, handler: nil))
             self.present(alertController, animated: true, completion: nil)
         }
     }
