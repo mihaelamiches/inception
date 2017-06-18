@@ -35,7 +35,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         loadScene()
     }
     
-    
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         
@@ -101,7 +100,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     func updateCache(withContents contents: String) {
-        let emoji = contents.split(separator: ",").flatMap { emojify(String($0)).first }.shuffled().first
+        let emoji = contents.split(separator: ",").flatMap { emojify(String($0)) }.shuffled().first
         
         clearCache()
         if contents.characters.count > 0 {
@@ -128,6 +127,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         let exact = emojis.filter { $0.description.lowercased() == input  }.map { $0.value }
         guard exact.count == 0 else { return exact }
+        
+        if prediction == "face" {
+            return emojis.filter { $0.tags.contains("face")  }.map { $0.value }[0...70].map { String($0) }
+        }
         
         let close = emojis.filter { $0.description.lowercased().contains(input) || input.contains($0.description.lowercased()) || $0.tags.contains(input)  }.map { $0.value }
         
@@ -176,11 +179,25 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         try? visionHandler.perform([visionRequest])
     }
     
+    func observeFaces(_ capturedScene: CVPixelBuffer) {
+        let facesRequest = VNDetectFaceLandmarksRequest { (request, error) in
+            guard let observations = request.results as? [VNFaceObservation],
+                let _ = observations.first,
+                error == nil else { return print(error ?? "") }
+            
+            self.updateCache(withContents:  "face")
+        }
+        
+        let facesHandler = VNImageRequestHandler(ciImage: CIImage(cvPixelBuffer: capturedScene))
+        try? facesHandler.perform([facesRequest])
+    }
+    
     func detectSceneObjects() {
         guard let capturedScene = sceneView.session.currentFrame?.capturedImage else { return print("😅") }
         
         observeVisionObjects(capturedScene)
-        observeInceptionObjects(capturedScene)
+        observeFaces(capturedScene)
+        //observeInceptionObjects(capturedScene)
     }
     
     // MARK:- Scene Nodes
@@ -189,12 +206,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let size = 600
         layer.frame = CGRect(origin: .zero, size: CGSize(width: size, height: size))
         layer.backgroundColor = UIColor.clear.cgColor
-        let text = type == .emoji ? value.1 : value.0
+        
+        let text = type == .emoji ? value.1 : Array(value.0.split(separator: ",").prefix(2)).map { String($0) }.joined(separator: ",")
         
         let textLayer = CATextLayer()
         textLayer.frame = layer.frame
         textLayer.foregroundColor = UIColor.pink.cgColor
-        textLayer.fontSize = type == .emoji ? layer.bounds.size.height : (text.characters.count > 30 ? 50 : 90)
+        textLayer.fontSize = type == .emoji ? layer.bounds.size.height : (text.characters.count > 20 ? 50 : 90)
         textLayer.string =  text
         textLayer.alignmentMode = type == .emoji ? kCAAlignmentCenter : kCAAlignmentLeft
         textLayer.isWrapped = true
