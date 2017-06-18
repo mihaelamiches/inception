@@ -18,11 +18,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var emojis: [Emoji] = []
     let inceptionv3 = Inceptionv3()
     
-    var lastPredicted: TimeInterval = Date().timeIntervalSinceNow
-    var lastRefreshed: TimeInterval = Date().timeIntervalSinceNow
+    var emojiCache: [Date: Emojified] = [:]
+    var lastPredicted = Date()
+    var lastRefreshed = Date()
     
-    var emojiCache: [TimeInterval: Emojified] = [:]
     let attentionSpan = 1
+    
     
     //MARK: - View Lifecycle
     override func viewDidLoad() {
@@ -90,15 +91,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     // MARK: - Cache
-    func clearCache(_ purge: Bool = true) {
-        let lifeSpan = 5
-        guard purge == true else { emojiCache = [:]; return }
+    func clearCache(_ purge: Bool = false) {
+        let lifespan = 5
+        guard purge == false else { emojiCache = [:]; return }
         
-        emojiCache = emojiCache.filter { cached in
-            let limit = Calendar.current.date(byAdding: .second, value: -lifeSpan, to: Date())!
-            return (Calendar.current.dateComponents([.second], from: Date(), to: limit).second ?? 0) < lifeSpan
-            
-        }
+        let alive = Calendar.current.date(byAdding: .second, value: -lifespan, to: Date()) ?? Date()
+        emojiCache = emojiCache.filter {  $0.key >= alive }
     }
     
     // MARK: - Emojify
@@ -152,14 +150,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         return inception.classLabel
     }
     
-    func snapshotScene(_ time: TimeInterval) {
+    func snapshotScene() {
         clearCache()
         
         let contents = detectSceneContents()
         let emoji = contents.split(separator: ",").flatMap { emojify(String($0)).first }.shuffled().first
         
         if contents.characters.count > 0 {
-            emojiCache[time] = (contents == "nematode, nematode worm, roundworm") ? ("", "🤔") : (contents, emoji ?? "")
+            lastPredicted = Date()
+            emojiCache[lastPredicted] = (contents == "nematode, nematode worm, roundworm") ? ("", "🤔") : (contents, emoji ?? "")
         }
     }
     
@@ -213,18 +212,18 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: - Scene Delegate
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-      //  let predictRate = 1
+      let predictRate = 1
       let refreshRate = 1
+      let now = Date()
         
-       // if TimeInterval.seconds(between: lastPredicted, and: time) > predictRate {
-          snapshotScene(time)
-          lastPredicted = time
-       // }
+      if Calendar.current.dateComponents([.second], from: lastPredicted, to: now).second ?? 0 >= predictRate {
+        snapshotScene()
+      }
         
-        if TimeInterval.seconds(between: lastRefreshed, and: time) > refreshRate {
-            dispatchAnchor()
-            lastRefreshed = time
-        }
+      if Calendar.current.dateComponents([.second], from: lastRefreshed, to: now).second ?? 0 >= refreshRate {
+        dispatchAnchor()
+        lastRefreshed = now
+      }
     }
     
     func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {

@@ -79,17 +79,9 @@ extension CABasicAnimation {
         let spin = CABasicAnimation(keyPath: "rotation")
         spin.fromValue = SCNVector4(0, 1, 0, 0)
         spin.toValue = SCNVector4(0, 1, 0, 2 * Double.pi)
+        spin.duration = 1.5
         spin.repeatCount = .infinity
         return spin
-    }
-}
-
-//MARK: - TimeInterval
-extension TimeInterval {
-    static func seconds(between: TimeInterval, and: TimeInterval) -> Int {
-        let from = Date(timeIntervalSinceNow: between)
-        let to = Date(timeIntervalSinceNow: and)
-        return Int(abs(Calendar.current.dateComponents([.second], from: from, to: to).second ?? Int.max))
     }
 }
 
